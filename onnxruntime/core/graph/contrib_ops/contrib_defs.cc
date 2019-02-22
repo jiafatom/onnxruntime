@@ -1262,6 +1262,66 @@ Example 4:
   the value of the sampled locations are computed directly
   through bilinear interpolation.)DOC");
 
+  ONNX_CONTRIB_OPERATOR_SCHEMA(BooleanMask)
+      .SetDomain(kMSDomain)
+      .SinceVersion(1)
+      .Input(0, "data", "Tensor of rank N >= 1.", "T")
+      .Input(1, "mask", "Tensor of rank K >= 1.", "Tmask")
+      .Output(0, "output", "Tensor of rank N-K+1 (K <= N)", "T")
+      .TypeConstraint(
+          "T",
+          OpSchema::all_tensor_types(),
+          "Constrain input and output types to any tensor type.")
+      .TypeConstraint(
+          "Tmask",
+          {"tensor(bool)"},
+          "Boolean tensor")
+      .TypeAndShapeInferenceFunction([](ONNX_NAMESPACE::InferenceContext& ctx) {
+        propagateElemTypeFromInputToOutput(ctx, 0, 0);
+        if (!hasNInputShapes(ctx, 2)) {
+          fail_shape_inference("BooleanMask requires two tensor inputs.");
+        }
+        auto& data_shape = ctx.getInputType(0)->tensor_type().shape();
+        auto& mask_shape = ctx.getInputType(1)->tensor_type().shape();
+        auto data_rank = data_shape.dim_size();
+        auto mask_rank = mask_shape.dim_size();
+        if (data_rank < 1 || mask_rank < 1) {
+          fail_shape_inference("both data and mask tensor need to have rank larger than zero.");
+        }
+        if (mask_rank > data_rank) {
+          fail_shape_inference("the rank of mask tensor must not be larger than the rank of data tensor");
+        }
+        for (int i = 0; i < mask_rank - 1; ++i) {
+          if (data_shape.dim(i).dim_value() != mask_shape.dim(i).dim_value()) {
+              fail_shape_inference("the dim of mask tensor and data tensor must match");
+          }
+        }
+      })
+      .SetDoc(R"DOC(
+  Given `data` tensor of rank N >= 1, and `mask` tensor of rank K >= 1, the output tensor is of rank N - K + 1.
+  Example 1:
+  data    = [[1, 2], [3, 4], [5, 6]]
+  mask = [True, False, True]
+  output  = [[1, 2], [5, 6]]
+  Example 2:
+  data = [[[ 0.0915,  0.0928,  1.4071],
+  [-0.2340,  0.4966, -2.0429],
+  [-1.8860, -2.034,   1.4967]],
+  [[-0.9386, -0.1200, -1.4857],
+   [-0.7398, -0.8596, -0.8107],
+   [ 1.2828,  2.0076, -1.2885]],
+  [[-0.4926, -0.5057,  0.3172],
+   [-0.2471, -0.1310, -0.8718],
+   [-0.4310,  0.5206,  1.5439]]]
+  mask = [[True, False, True],
+    [False, False, True],
+    [False, False, True]]
+  output = [[ 0.0915, 0.0928, 1.4071],
+    [-1.8860, -2.034,   1.4967],
+    [ 1.2828,  2.0076, -1.2885],
+    [-0.4310,  0.5206,  1.5439]]
+    )DOC");
+
 #ifdef MICROSOFT_INTERNAL
   // register internal ops
   RegisterInternalSchemas();
